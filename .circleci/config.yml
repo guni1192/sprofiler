@@ -1,0 +1,73 @@
+version: 2.1
+
+jobs:
+  check:
+    docker:
+      - image: rust:1.58-slim-bullseye
+    steps:
+      - checkout
+      - restore_cache:
+          key: rust-cache
+      - run:
+          name: Install build dependencies
+          command: apt update && apt-get install -y libelf-dev libgcc-s1 libbpf-dev clang bpftool make pkg-config
+      - run:
+          name: Install rustfmt, clippy
+          command: rustup component add rustfmt clippy
+      - run:
+          name: Install libbpf-cargo
+          command: cargo install libbpf-cargo
+      - run:
+          name: Generate vmlinux.h
+          command: bpftool btf dump file /sys/kernel/btf/vmlinux format c > ./sprofiler/src/bpf/vmlinux.h
+      - run:
+          name: Build sprofiler
+          command: cargo libbpf make
+      - run:
+          name: cargo fmt
+          command: cargo fmt --all -- --check
+      - run:
+          name: cargo clippy
+          command: cargo clippy --all-features -- -D warnings
+      - save_cache:
+          key: rust-cache
+          paths:
+            - "~/.cargo"
+            - "./target"
+
+  test:
+    docker:
+      - image: rust:1.58-slim-bullseye
+    steps:
+      - checkout
+      - restore_cache:
+          key: rust-cache
+      - run:
+          name: Install build dependencies
+          command: apt update && apt-get install -y libelf-dev libgcc-s1 libbpf-dev clang bpftool make pkg-config
+      - run:
+          name: Install rustfmt for libbpf-cargo
+          command: rustup component add rustfmt
+      - run:
+          name: Install libbpf-cargo
+          command: cargo install libbpf-cargo
+      - run:
+          name: Generate vmlinux.h
+          command: bpftool btf dump file /sys/kernel/btf/vmlinux format c > ./sprofiler/src/bpf/vmlinux.h
+      - run:
+          name: Build sprofiler
+          command: cargo libbpf make
+      - run:
+          name: Unit Test
+          command: cargo test --all-features
+      - save_cache:
+          key: rust-cache
+          paths:
+            - "~/.cargo"
+            - "./target"
+
+workflows:
+  build-and-test:
+    jobs:
+      - check
+      - test
