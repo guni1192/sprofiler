@@ -17,3 +17,7 @@ tempdir = "0.3.7"
 tracing = "0.1.31"
 tracing-subscriber = "0.3.9"
 oci_runtime_spec = { path = "../oci-runtime-spec" }
+
+[dependencies.async-std]
+async-std = "1.10.0"
+features = ["attributes", "unstable"]

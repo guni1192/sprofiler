@@ -1,7 +1,7 @@
 use std::path::PathBuf;
-use std::process::{Command, Stdio};
 
 use anyhow::Result;
+use async_std::process::{Command, Stdio};
 use derive_builder::Builder;
 use tracing::{error, trace};
 
@@ -40,13 +40,14 @@ impl PodmanRunner {
         args
     }
 
-    pub fn run(&self) -> Result<()> {
+    pub async fn run(&self) -> Result<()> {
         let args = self.args();
         let output = Command::new(&args[0])
             .args(&args[1..])
             .stdout(Stdio::null())
             .stderr(Stdio::null())
-            .output()?;
+            .output()
+            .await?;
 
         if output.status.success() {
             trace!("Podman exit code: {}", output.status);
