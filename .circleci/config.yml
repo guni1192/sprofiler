@@ -9,8 +9,26 @@ jobs:
       - run:
           name: Show kernel version
           command: uname -a
+      - run:
+          name: Show rustc version
+          command: rustc --version
+      - run:
+          name: Install build dependencies
+          command: sudo apt-get install -y libelf-dev libgcc-s1 libbpf-dev clang linux-tools-common linux-tools-generic make pkg-config
+      - run:
+          name: Install libbpf-cargo
+          command: cargo install libbpf-cargo
+      - run:
+          name: Generate vmlinux.h
+          command: bpftool btf dump file /sys/kernel/btf/vmlinux format c > ./sprofiler/src/bpf/vmlinux.h
+      - run:
+          name: Build sprofiler
+          command: cargo libbpf make
+      - run:
+          name: Unit Test
+          command: cargo test --all-features
 
 workflows:
-  say-hello-workflow:
+  build-and-test:
     jobs:
       - test
