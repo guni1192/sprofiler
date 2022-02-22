@@ -16,6 +16,9 @@ jobs:
           name: Install build dependencies
           command: apt update && apt-get install -y libelf-dev libgcc-s1 libbpf-dev clang bpftool make pkg-config
       - run:
+          name: Install rustfmt for libbpf-cargo
+          command: rustup component add rustfmt
+      - run:
           name: Install libbpf-cargo
           command: cargo install libbpf-cargo
       - run:
