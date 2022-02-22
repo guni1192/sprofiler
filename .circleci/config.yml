@@ -6,6 +6,8 @@ jobs:
       - image: rust:1.58-slim-bullseye
     steps:
       - checkout
+      - restore_cache:
+          key: rust-cache
       - run:
           name: Install build dependencies
           command: apt update && apt-get install -y libelf-dev libgcc-s1 libbpf-dev clang bpftool make pkg-config
@@ -27,12 +29,19 @@ jobs:
       - run:
           name: cargo clippy
           command: cargo clippy --all-features -- -D warnings
+      - save_cache:
+          key: rust-cache
+          paths:
+            - "~/.cargo"
+            - "./target"
 
   test:
     docker:
       - image: rust:1.58-slim-bullseye
     steps:
       - checkout
+      - restore_cache:
+          key: rust-cache
       - run:
           name: Install build dependencies
           command: apt update && apt-get install -y libelf-dev libgcc-s1 libbpf-dev clang bpftool make pkg-config
@@ -51,6 +60,11 @@ jobs:
       - run:
           name: Unit Test
           command: cargo test --all-features
+      - save_cache:
+          key: rust-cache
+          paths:
+            - "~/.cargo"
+            - "./target"
 
 workflows:
   build-and-test:
