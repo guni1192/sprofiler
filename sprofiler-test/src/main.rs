@@ -23,7 +23,8 @@ struct Args {
     log_level: Level,
 }
 
-fn main() -> Result<()> {
+#[async_std::main]
+async fn main() -> Result<()> {
     let args = Args::parse();
 
     tracing_subscriber::fmt()
@@ -36,7 +37,7 @@ fn main() -> Result<()> {
     let testing = serde_yaml::from_reader(&reader)?;
 
     trace!("Starting test tool");
-    run_tests(testing)?;
+    run_tests(testing).await?;
 
     Ok(())
 }

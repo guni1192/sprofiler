@@ -1,9 +1,10 @@
-use std::fs::File;
 use std::path::{Path, PathBuf};
 use std::thread::sleep;
 use std::time::Duration;
 
 use anyhow::{bail, Result};
+use async_std::fs::File;
+use async_std::io::ReadExt;
 use oci_runtime_spec::{LinuxSeccomp, LinuxSeccompAction};
 use serde::{Deserialize, Serialize};
 use tracing::{error, info, trace};
@@ -37,7 +38,7 @@ pub struct Test {
     pub image: String,
 }
 
-pub fn execute_test_case<P: AsRef<Path>>(
+pub async fn execute_test_case<P: AsRef<Path>>(
     testcase: &Test,
     podman_path: P,
     hooks_dir: P,
@@ -60,7 +61,7 @@ where
 
     trace!("[{}] {}", testcase.name, podman.args().join(" "));
 
-    podman.run()?;
+    podman.run().await?;
 
     if let Some(seccomp_profile_path) = podman.sprofiler_output.as_ref() {
         trace!(
@@ -69,8 +70,8 @@ where
             seccomp_profile_path.display()
         );
 
-        for _ in 0..50 {
-            let file = match File::open(&seccomp_profile_path) {
+        for _ in 0..500 {
+            let mut file = match File::open(&seccomp_profile_path).await {
                 Ok(file) => file,
                 Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
                     sleep(Duration::from_millis(100));
@@ -78,7 +79,11 @@ where
                 }
                 Err(e) => bail!(e),
             };
-            let seccomp: LinuxSeccomp = serde_json::from_reader(file)?;
+
+            let mut s = String::new();
+            file.read_to_string(&mut s).await?;
+            trace!("[{}] Read Seccomp Profile: {}", testcase.name, s);
+            let seccomp: LinuxSeccomp = serde_json::from_str(&s)?;
             let s = serde_json::to_string(&seccomp)?;
             trace!("[{}] Seccomp: {}", testcase.name, s);
 
@@ -113,7 +118,7 @@ pub fn assert_seccomp_profile(testname: &str, seccomp: LinuxSeccomp) {
     }
 }
 
-pub fn run_tests(testing: Testing) -> Result<()> {
+pub async fn run_tests(testing: Testing) -> Result<()> {
     if !testing.config.sprofiler.exists() {
         error!("Not found: {}", testing.config.sprofiler.display());
         std::process::exit(1);
@@ -131,7 +136,7 @@ pub fn run_tests(testing: Testing) -> Result<()> {
         hooks::create_hook_config(base_dir.path().to_path_buf(), testing.config.sprofiler)?;
 
     for test in testing.tests {
-        match execute_test_case(&test, &testing.config.podman, &hooks_dir) {
+        match execute_test_case(&test, &testing.config.podman, &hooks_dir).await {
             Ok(_) => info!("[{}] PASSED", &test.name),
             Err(e) => error!("[{}] FAILED: {}", &test.name, e),
         };

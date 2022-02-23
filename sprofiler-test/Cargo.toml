@@ -1,12 +1,16 @@
 [package]
 name = "sprofiler-test"
 version = "0.1.0"
+authors = ["Takashi IIGUNI <iiguni.tks@gmail.com>"]
 edition = "2021"
+
+license-file = "../LICENSE"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 anyhow = "1.0.54"
+async-std = { version = "1.10.0", features = ["attributes", "unstable"] }
 clap = { version = "3.1.0", features = ["derive"] }
 derive_builder = "0.10.2"
 getset = "0.1.2"
