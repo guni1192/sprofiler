@@ -5,7 +5,6 @@ use std::time::Duration;
 use anyhow::{bail, Result};
 use async_std::fs::File;
 use async_std::io::ReadExt;
-use async_std::prelude::*;
 use oci_runtime_spec::{LinuxSeccomp, LinuxSeccompAction};
 use serde::{Deserialize, Serialize};
 use tracing::{error, info, trace};
