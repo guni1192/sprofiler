@@ -5,7 +5,7 @@ use std::time::Duration;
 use anyhow::{bail, Result};
 use async_std::fs::File;
 use async_std::io::ReadExt;
-use oci_runtime_spec::{LinuxSeccomp, LinuxSeccompAction};
+use oci_spec::runtime::{LinuxSeccomp, LinuxSeccompAction};
 use serde::{Deserialize, Serialize};
 use tracing::{error, info, trace};
 
@@ -95,21 +95,21 @@ where
 }
 
 pub fn assert_seccomp_profile(testname: &str, seccomp: LinuxSeccomp) {
-    assert!(seccomp.default_action == LinuxSeccompAction::SCMP_ACT_ERRNO);
+    assert!(seccomp.default_action() == LinuxSeccompAction::ScmpActErrno);
     info!("[{}] OK seccomp.default_action == SCMP_ACT_ERRNO", testname);
 
-    assert!(seccomp.syscalls.is_some());
+    assert!(seccomp.syscalls().is_some());
     info!("[{}] OK seccomp.syscalls.is_some()", testname);
-    if let Some(syscalls) = seccomp.syscalls {
+    if let Some(syscalls) = seccomp.syscalls().as_ref() {
         assert!(!syscalls.is_empty());
         info!("[{}] OK !seccomp.syscalls.is_empty()", testname);
 
         for syscall in syscalls {
-            assert!(!syscall.names.is_empty());
+            assert!(!syscall.names().is_empty());
 
             info!("[{}] OK !seccomp.syscalls[i].names.is_empty()", testname);
 
-            assert_eq!(syscall.action, LinuxSeccompAction::SCMP_ACT_ALLOW);
+            assert_eq!(syscall.action(), LinuxSeccompAction::ScmpActErrno);
             info!(
                 "[{}] OK seccomp.syscalls[i].action == SCMP_ACT_ALLOW",
                 testname

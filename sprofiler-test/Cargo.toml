@@ -20,5 +20,4 @@ serde_yaml = "0.8.23"
 tempdir = "0.3.7"
 tracing = "0.1.31"
 tracing-subscriber = "0.3.9"
-oci_runtime_spec = { path = "../oci-runtime-spec" }
 oci-spec = "0.5.4"

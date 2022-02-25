@@ -22,7 +22,7 @@ fn extract_syscall_names(profile: LinuxSeccomp) -> Result<Vec<String>> {
     };
 
     let mut names: Vec<String> = syscalls
-        .into_iter()
+        .iter()
         .map(|syscall| syscall.names().to_owned())
         .flatten()
         .collect();
