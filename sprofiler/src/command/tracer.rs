@@ -22,8 +22,11 @@ use sprofiler_sys::arch::x86_64::SYSCALLS;
 use crate::bpf::*;
 use crate::dynamic::annotation;
 use crate::dynamic::process;
+use crate::oci::State;
 
-use oci_runtime_spec::{Arch, LinuxSeccomp, LinuxSeccompAction, LinuxSyscall, State};
+use oci_spec::runtime::{
+    Arch, LinuxSeccomp, LinuxSeccompAction, LinuxSeccompBuilder, LinuxSyscallBuilder,
+};
 
 lazy_static! {
     static ref SYSCALL_LIST: Mutex<HashSet<&'static str>> = Mutex::new(HashSet::new());
@@ -65,15 +68,16 @@ fn gen_seccomp_rule() -> anyhow::Result<LinuxSeccomp> {
         .collect();
     syscall_list.sort();
 
-    let seccomp_profile = LinuxSeccomp {
-        syscalls: Some(vec![LinuxSyscall {
-            names: syscall_list,
-            action: LinuxSeccompAction::SCMP_ACT_ALLOW,
-            args: None,
-        }]),
-        default_action: LinuxSeccompAction::SCMP_ACT_ERRNO,
-        architectures: Some(vec![Arch::SCMP_ARCH_X86_64]),
-    };
+    let architectures = vec![Arch::ScmpArchX86, Arch::ScmpArchX86_64];
+
+    let seccomp_profile = LinuxSeccompBuilder::default()
+        .default_action(LinuxSeccompAction::ScmpActErrno)
+        .architectures(architectures)
+        .syscalls(vec![LinuxSyscallBuilder::default()
+            .names(syscall_list)
+            .action(LinuxSeccompAction::ScmpActAllow)
+            .build()?])
+        .build()?;
 
     Ok(seccomp_profile)
 }

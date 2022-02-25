@@ -62,7 +62,7 @@ pub fn do_diff(path1: PathBuf, path2: PathBuf) -> Result<()> {
     let profile1 = profile_util::read_seccomp_profile(&path1)?;
     let profile2 = profile_util::read_seccomp_profile(&path2)?;
 
-    let map = profile_util::diff(profile1, profile2);
+    let map = profile_util::diff(profile1, profile2)?;
 
     let mut profile1_only = vec![];
     let mut profile2_only = vec![];
@@ -106,7 +106,7 @@ pub fn do_diff(path1: PathBuf, path2: PathBuf) -> Result<()> {
 
 pub fn do_merge(paths: Vec<PathBuf>, out: PathBuf) -> Result<()> {
     let profiles = profile_util::read_seccomp_profiles(paths)?;
-    let profile = profile_util::merge(profiles);
+    let profile = profile_util::merge(profiles)?;
 
     let target_file = File::create(&out)?;
     serde_json::to_writer(target_file, &profile)?;

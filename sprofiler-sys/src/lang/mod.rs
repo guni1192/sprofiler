@@ -2,7 +2,7 @@ use std::path::PathBuf;
 use std::str::FromStr;
 
 use anyhow::Result;
-use oci_runtime_spec::LinuxSeccomp;
+use oci_spec::runtime::LinuxSeccomp;
 
 pub mod c;
 pub mod golang;

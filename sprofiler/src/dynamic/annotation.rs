@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use oci_runtime_spec::State;
+use crate::oci::State;
 
 const SPROFILER_OCI_ANNOTATION: &str = "io.sprofiler.output_seccomp_profile_path";
 
