@@ -1,4 +1,4 @@
-ARG RUST_VERSION=1.54
+ARG RUST_VERSION=1.58
 
 FROM rust:${RUST_VERSION}-slim-bullseye as planner
 RUN apt-get update \

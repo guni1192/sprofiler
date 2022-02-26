@@ -712,11 +712,16 @@ dependencies = [
 ]
 
 [[package]]
-name = "oci_runtime_spec"
-version = "0.1.0"
+name = "oci-spec"
+version = "0.5.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6b409d52fff741f330914aa6b8ab73e9113607bb13fbc09f95cdb04d16c8dd5d"
 dependencies = [
+ "derive_builder",
+ "getset",
  "serde",
  "serde_json",
+ "thiserror",
 ]
 
 [[package]]
@@ -1000,8 +1005,9 @@ dependencies = [
  "lazy_static",
  "libbpf-rs",
  "nix 0.23.1",
- "oci_runtime_spec",
+ "oci-spec",
  "plain",
+ "serde",
  "serde_json",
  "signal-hook",
  "sprofiler-sys",
@@ -1015,7 +1021,7 @@ dependencies = [
  "anyhow",
  "lazy_static",
  "object",
- "oci_runtime_spec",
+ "oci-spec",
  "regex",
  "serde",
  "serde_derive",
@@ -1031,7 +1037,7 @@ dependencies = [
  "clap 3.1.0",
  "derive_builder",
  "getset",
- "oci_runtime_spec",
+ "oci-spec",
  "serde",
  "serde_json",
  "serde_yaml",

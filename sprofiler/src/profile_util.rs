@@ -2,8 +2,10 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::path::{Path, PathBuf};
 
-use anyhow::Result;
-use oci_runtime_spec::{Arch, LinuxSeccomp, LinuxSeccompAction, LinuxSyscall};
+use anyhow::{bail, Result};
+use oci_spec::runtime::{
+    Arch, LinuxSeccomp, LinuxSeccompAction, LinuxSeccompBuilder, LinuxSyscallBuilder,
+};
 
 #[derive(Debug, PartialEq)]
 pub enum DiffStatus {
@@ -12,22 +14,23 @@ pub enum DiffStatus {
     Both,
 }
 
-fn extract_syscall_names(profile: LinuxSeccomp) -> Vec<String> {
-    let syscalls = match profile.syscalls {
-        Some(syscalls) => syscalls,
-        None => vec![],
+fn extract_syscall_names(profile: LinuxSeccomp) -> Result<Vec<String>> {
+    let syscalls = if let Some(syscalls) = profile.syscalls().as_ref() {
+        syscalls
+    } else {
+        bail!("Profile don't have syscalls")
     };
 
     let mut names: Vec<String> = syscalls
-        .into_iter()
-        .map(|syscall| syscall.names)
+        .iter()
+        .map(|syscall| syscall.names().to_owned())
         .flatten()
         .collect();
 
     names.sort();
     names.dedup();
 
-    names
+    Ok(names)
 }
 
 pub fn read_seccomp_profiles(paths: Vec<PathBuf>) -> Result<Vec<LinuxSeccomp>> {
@@ -47,34 +50,37 @@ pub fn read_seccomp_profile(path: &Path) -> Result<LinuxSeccomp> {
     Ok(profile)
 }
 
-pub fn merge(profiles: Vec<LinuxSeccomp>) -> LinuxSeccomp {
+pub fn merge(profiles: Vec<LinuxSeccomp>) -> Result<LinuxSeccomp> {
     if profiles.is_empty() {
-        return LinuxSeccomp::default();
+        return Ok(LinuxSeccomp::default());
     }
 
     let mut names: Vec<String> = profiles
-        .into_iter()
-        .map(extract_syscall_names)
+        .iter()
+        .filter_map(|profile| extract_syscall_names(profile.clone()).ok())
         .flatten()
         .collect();
 
     names.sort();
     names.dedup();
 
-    LinuxSeccomp {
-        default_action: LinuxSeccompAction::SCMP_ACT_ERRNO,
-        architectures: Some(vec![Arch::SCMP_ARCH_X86, Arch::SCMP_ARCH_X86_64]),
-        syscalls: Some(vec![LinuxSyscall {
-            names,
-            action: LinuxSeccompAction::SCMP_ACT_ALLOW,
-            args: None,
-        }]),
-    }
+    let arch: Vec<Arch> = vec![Arch::ScmpArchX86, Arch::ScmpArchX86_64];
+
+    let seccomp = LinuxSeccompBuilder::default()
+        .default_action(LinuxSeccompAction::ScmpActErrno)
+        .architectures(arch)
+        .syscalls(vec![LinuxSyscallBuilder::default()
+            .names(names)
+            .action(LinuxSeccompAction::ScmpActAllow)
+            .build()?])
+        .build()?;
+
+    Ok(seccomp)
 }
 
-pub fn diff(profile1: LinuxSeccomp, profile2: LinuxSeccomp) -> HashMap<String, DiffStatus> {
-    let syscalls_from_profile1 = extract_syscall_names(profile1);
-    let syscalls_from_profile2 = extract_syscall_names(profile2);
+pub fn diff(profile1: LinuxSeccomp, profile2: LinuxSeccomp) -> Result<HashMap<String, DiffStatus>> {
+    let syscalls_from_profile1 = extract_syscall_names(profile1)?;
+    let syscalls_from_profile2 = extract_syscall_names(profile2)?;
 
     let mut diff_hash = HashMap::<String, DiffStatus>::new();
 
@@ -90,7 +96,7 @@ pub fn diff(profile1: LinuxSeccomp, profile2: LinuxSeccomp) -> HashMap<String, D
         }
     }
 
-    diff_hash
+    Ok(diff_hash)
 }
 
 #[cfg(test)]
@@ -98,152 +104,171 @@ mod tests {
 
     use super::*;
 
-    fn gen_seccomp_profile(allow_syscalls: Vec<&str>) -> LinuxSeccomp {
+    fn gen_seccomp_profile(allow_syscalls: Vec<&str>) -> Result<LinuxSeccomp> {
         let mut names: Vec<String> = allow_syscalls.into_iter().map(String::from).collect();
         names.sort();
 
-        LinuxSeccomp {
-            default_action: LinuxSeccompAction::SCMP_ACT_ERRNO,
-            architectures: Some(vec![Arch::SCMP_ARCH_X86, Arch::SCMP_ARCH_X86_64]),
-            syscalls: Some(vec![LinuxSyscall {
-                names,
-                action: LinuxSeccompAction::SCMP_ACT_ALLOW,
-                args: None,
-            }]),
-        }
+        let seccomp = LinuxSeccompBuilder::default()
+            .default_action(LinuxSeccompAction::ScmpActErrno)
+            .architectures(vec![Arch::ScmpArchX86, Arch::ScmpArchX86_64])
+            .syscalls(vec![LinuxSyscallBuilder::default()
+                .names(names)
+                .action(LinuxSeccompAction::ScmpActAllow)
+                .build()?])
+            .build()?;
+
+        Ok(seccomp)
     }
 
-    fn gen_duplicate_syscalls_profile(allow_syscalls: Vec<&str>) -> LinuxSeccomp {
+    fn gen_duplicate_syscalls_profile(allow_syscalls: Vec<&str>) -> Result<LinuxSeccomp> {
         let mut names: Vec<String> = allow_syscalls.into_iter().map(String::from).collect();
         names.sort();
 
-        let syscalls = LinuxSyscall {
-            names,
-            action: LinuxSeccompAction::SCMP_ACT_ALLOW,
-            args: None,
-        };
+        let syscalls = LinuxSyscallBuilder::default()
+            .names(names)
+            .action(LinuxSeccompAction::ScmpActAllow)
+            .build()?;
 
-        LinuxSeccomp {
-            default_action: LinuxSeccompAction::SCMP_ACT_ERRNO,
-            architectures: Some(vec![Arch::SCMP_ARCH_X86, Arch::SCMP_ARCH_X86_64]),
-            syscalls: Some(vec![syscalls.clone(), syscalls.clone()]),
-        }
+        let seccomp = LinuxSeccompBuilder::default()
+            .default_action(LinuxSeccompAction::ScmpActErrno)
+            .architectures(vec![Arch::ScmpArchX86, Arch::ScmpArchX86_64])
+            .syscalls(vec![syscalls.clone(), syscalls.clone()])
+            .build()?;
+
+        Ok(seccomp)
     }
 
     #[test]
-    fn extract_syscall_names_give_single_syscall_name() {
-        let profile = gen_seccomp_profile(vec!["mkdir"]);
-        let syscall_names = extract_syscall_names(profile);
+    fn extract_syscall_names_give_single_syscall_name() -> Result<()> {
+        let profile = gen_seccomp_profile(vec!["mkdir"])?;
+        let syscall_names = extract_syscall_names(profile)?;
 
-        assert_eq!(syscall_names, vec!["mkdir".to_string()])
+        assert_eq!(syscall_names, vec!["mkdir".to_string()]);
+
+        Ok(())
     }
 
     #[test]
-    fn extract_syscall_names_give_2_syscall_name() {
-        let profile = gen_seccomp_profile(vec!["mkdir", "chdir"]);
-        let syscall_names = extract_syscall_names(profile);
+    fn extract_syscall_names_give_2_syscall_name() -> Result<()> {
+        let profile = gen_seccomp_profile(vec!["mkdir", "chdir"])?;
+        let syscall_names = extract_syscall_names(profile)?;
 
         // syscalls names must be sorted
         assert_eq!(
             syscall_names,
             vec!["chdir".to_string(), "mkdir".to_string()]
-        )
+        );
+
+        Ok(())
     }
 
     #[test]
-    fn merge_profile_from_empty_data() {
-        let profile = merge(Vec::new());
+    fn merge_profile_from_empty_data() -> Result<()> {
+        let profile = merge(Vec::new())?;
 
-        assert_eq!(profile.default_action, LinuxSeccompAction::SCMP_ACT_ALLOW);
-        assert_eq!(profile.syscalls, None);
-        assert_eq!(profile.architectures, None);
+        assert_eq!(profile.default_action(), LinuxSeccompAction::ScmpActAllow);
+        assert!(profile.syscalls().is_none());
+        assert!(profile.architectures().is_none());
+
+        Ok(())
     }
 
     #[test]
-    fn merge_profile_from_2_profiles() {
-        let profile1 = gen_seccomp_profile(vec!["mkdir"]);
-        let profile2 = gen_seccomp_profile(vec!["chdir"]);
+    fn merge_profile_from_2_profiles() -> Result<()> {
+        let profile1 = gen_seccomp_profile(vec!["mkdir"])?;
+        let profile2 = gen_seccomp_profile(vec!["chdir"])?;
 
-        let act = merge(vec![profile1, profile2]);
+        let act = merge(vec![profile1, profile2])?;
 
-        let expect = gen_seccomp_profile(vec!["chdir", "mkdir"]);
+        let expect = gen_seccomp_profile(vec!["chdir", "mkdir"])?;
 
-        assert_eq!(act.default_action, LinuxSeccompAction::SCMP_ACT_ERRNO);
-        assert_eq!(act.architectures, expect.architectures);
-        assert_eq!(act.syscalls, expect.syscalls);
+        assert_eq!(act.default_action(), LinuxSeccompAction::ScmpActErrno);
+        assert_eq!(act.architectures(), expect.architectures());
+        assert_eq!(act.syscalls(), expect.syscalls());
+
+        Ok(())
     }
 
     #[test]
-    fn merge_profile_from_duplicated_syscalls() {
-        let profile1 = gen_duplicate_syscalls_profile(vec!["ptrace"]);
-        let profile2 = gen_duplicate_syscalls_profile(vec!["chroot"]);
+    fn merge_profile_from_duplicated_syscalls() -> Result<()> {
+        let profile1 = gen_duplicate_syscalls_profile(vec!["ptrace"])?;
+        let profile2 = gen_duplicate_syscalls_profile(vec!["chroot"])?;
 
-        let act = merge(vec![profile1, profile2]);
+        let act = merge(vec![profile1, profile2])?;
 
-        let expect = gen_seccomp_profile(vec!["chroot", "ptrace"]);
+        let expect = gen_seccomp_profile(vec!["chroot", "ptrace"])?;
 
-        assert_eq!(act.default_action, LinuxSeccompAction::SCMP_ACT_ERRNO);
-        assert_eq!(act.architectures, expect.architectures);
-        assert_eq!(act.syscalls, expect.syscalls);
+        assert_eq!(act.default_action(), LinuxSeccompAction::ScmpActErrno);
+        assert_eq!(act.architectures(), expect.architectures());
+        assert_eq!(act.syscalls(), expect.syscalls());
+
+        Ok(())
     }
 
     #[test]
-    fn merge_profile_from_3_profiles() {
-        let profile1 = gen_seccomp_profile(vec!["mkdir", "chdir"]);
-        let profile2 = gen_seccomp_profile(vec!["accept", "bind"]);
-        let profile3 = gen_seccomp_profile(vec!["getuid", "getgid"]);
+    fn merge_profile_from_3_profiles() -> Result<()> {
+        let profile1 = gen_seccomp_profile(vec!["mkdir", "chdir"])?;
+        let profile2 = gen_seccomp_profile(vec!["accept", "bind"])?;
+        let profile3 = gen_seccomp_profile(vec!["getuid", "getgid"])?;
 
-        let act = merge(vec![profile1, profile2, profile3]);
+        let act = merge(vec![profile1, profile2, profile3])?;
 
         let expect =
-            gen_seccomp_profile(vec!["accept", "bind", "chdir", "getgid", "getuid", "mkdir"]);
+            gen_seccomp_profile(vec!["accept", "bind", "chdir", "getgid", "getuid", "mkdir"])?;
 
-        assert_eq!(act.default_action, LinuxSeccompAction::SCMP_ACT_ERRNO);
-        assert_eq!(act.architectures, expect.architectures);
-        assert_eq!(act.syscalls, expect.syscalls);
+        assert_eq!(act.default_action(), LinuxSeccompAction::ScmpActErrno);
+        assert_eq!(act.architectures(), expect.architectures());
+        assert_eq!(act.syscalls(), expect.syscalls());
+
+        Ok(())
     }
 
     #[test]
-    fn merge_profile_duplicated_syscall() {
-        let profile1 = gen_seccomp_profile(vec!["mkdir", "chdir"]);
-        let profile2 = gen_seccomp_profile(vec!["chdir", "getpid"]);
+    fn merge_profile_duplicated_syscall() -> Result<()> {
+        let profile1 = gen_seccomp_profile(vec!["mkdir", "chdir"])?;
+        let profile2 = gen_seccomp_profile(vec!["chdir", "getpid"])?;
 
-        let act = merge(vec![profile1, profile2]);
+        let act = merge(vec![profile1, profile2])?;
 
-        let expect = gen_seccomp_profile(vec!["chdir", "getpid", "mkdir"]);
+        let expect = gen_seccomp_profile(vec!["chdir", "getpid", "mkdir"])?;
 
-        assert_eq!(act.default_action, LinuxSeccompAction::SCMP_ACT_ERRNO);
-        assert_eq!(act.architectures, expect.architectures);
-        assert_eq!(act.syscalls, expect.syscalls);
+        assert_eq!(act.default_action(), LinuxSeccompAction::ScmpActErrno);
+        assert_eq!(act.architectures(), expect.architectures());
+        assert_eq!(act.syscalls(), expect.syscalls());
+
+        Ok(())
     }
 
     #[test]
-    fn diff_equal_profile() {
-        let profile1 = gen_seccomp_profile(vec!["mkdir"]);
-        let profile2 = gen_seccomp_profile(vec!["mkdir"]);
-        let map = diff(profile1, profile2);
+    fn diff_equal_profile() -> Result<()> {
+        let profile1 = gen_seccomp_profile(vec!["mkdir"])?;
+        let profile2 = gen_seccomp_profile(vec!["mkdir"])?;
+        let map = diff(profile1, profile2)?;
 
         assert_eq!(map.len(), 1);
         assert_eq!(map.get(&"mkdir".to_string()), Some(&DiffStatus::Both));
+
+        Ok(())
     }
 
     #[test]
-    fn diff_equal_profile_3_syscalls() {
-        let profile1 = gen_seccomp_profile(vec!["getpid", "mkdir", "unshare"]);
-        let profile2 = gen_seccomp_profile(vec!["getpid", "mkdir", "unshare"]);
-        let map = diff(profile1, profile2);
+    fn diff_equal_profile_3_syscalls() -> Result<()> {
+        let profile1 = gen_seccomp_profile(vec!["getpid", "mkdir", "unshare"])?;
+        let profile2 = gen_seccomp_profile(vec!["getpid", "mkdir", "unshare"])?;
+        let map = diff(profile1, profile2)?;
 
         assert_eq!(map.len(), 3);
         assert_eq!(map.get(&"getpid".to_string()), Some(&DiffStatus::Both));
         assert_eq!(map.get(&"mkdir".to_string()), Some(&DiffStatus::Both));
         assert_eq!(map.get(&"unshare".to_string()), Some(&DiffStatus::Both));
+        Ok(())
     }
 
     #[test]
-    fn diff_only_profile1_syscalls() {
-        let profile1 = gen_seccomp_profile(vec!["getpid", "mkdir", "unshare"]);
-        let profile2 = gen_seccomp_profile(vec!["getuid"]);
-        let map = diff(profile1, profile2);
+    fn diff_only_profile1_syscalls() -> Result<()> {
+        let profile1 = gen_seccomp_profile(vec!["getpid", "mkdir", "unshare"])?;
+        let profile2 = gen_seccomp_profile(vec!["getuid"])?;
+        let map = diff(profile1, profile2)?;
 
         assert_eq!(map.len(), 4);
         assert_eq!(map.get(&"getpid".to_string()), Some(&DiffStatus::OnlyPath1));
@@ -253,13 +278,14 @@ mod tests {
             Some(&DiffStatus::OnlyPath1)
         );
         assert_eq!(map.get(&"getuid".to_string()), Some(&DiffStatus::OnlyPath2));
+        Ok(())
     }
 
     #[test]
-    fn diff_only_profile2_syscalls() {
-        let profile1 = gen_seccomp_profile(vec!["getuid"]);
-        let profile2 = gen_seccomp_profile(vec!["getpid", "mkdir", "unshare"]);
-        let map = diff(profile1, profile2);
+    fn diff_only_profile2_syscalls() -> Result<()> {
+        let profile1 = gen_seccomp_profile(vec!["getuid"])?;
+        let profile2 = gen_seccomp_profile(vec!["getpid", "mkdir", "unshare"])?;
+        let map = diff(profile1, profile2)?;
 
         assert_eq!(map.len(), 4);
         assert_eq!(map.get(&"getpid".to_string()), Some(&DiffStatus::OnlyPath2));
@@ -269,5 +295,7 @@ mod tests {
             Some(&DiffStatus::OnlyPath2)
         );
         assert_eq!(map.get(&"getuid".to_string()), Some(&DiffStatus::OnlyPath1));
+
+        Ok(())
     }
 }

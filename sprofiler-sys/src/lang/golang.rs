@@ -4,7 +4,9 @@ use std::path::PathBuf;
 
 use anyhow::Result;
 use object::{Object, ObjectSymbol};
-use oci_runtime_spec::{Arch, LinuxSeccomp, LinuxSeccompAction, LinuxSyscall};
+use oci_spec::runtime::{
+    Arch, LinuxSeccomp, LinuxSeccompAction, LinuxSeccompBuilder, LinuxSyscall, LinuxSyscallBuilder,
+};
 use regex::Regex;
 
 use crate::lang::SeccompProfiler;
@@ -19,11 +21,13 @@ impl SeccompProfiler for GoSeccompProfiler {
     fn analyze(&self) -> Result<LinuxSeccomp> {
         let syscall: LinuxSyscall = self.run()?;
 
-        Ok(LinuxSeccomp {
-            syscalls: Some(vec![syscall]),
-            default_action: LinuxSeccompAction::SCMP_ACT_ERRNO,
-            architectures: Some(vec![Arch::SCMP_ARCH_X86_64]),
-        })
+        let seccomp = LinuxSeccompBuilder::default()
+            .syscalls(vec![syscall])
+            .default_action(LinuxSeccompAction::ScmpActErrno)
+            .architectures(vec![Arch::ScmpArchX86_64])
+            .build()?;
+
+        Ok(seccomp)
     }
 
     fn output(&self) -> Result<()> {
@@ -53,11 +57,12 @@ impl GoSeccompProfiler {
         let mut syscalls: Vec<String> = syscalls.into_iter().collect();
         syscalls.sort();
 
-        Ok(LinuxSyscall {
-            names: syscalls,
-            action: LinuxSeccompAction::SCMP_ACT_ALLOW,
-            args: None,
-        })
+        let syscall = LinuxSyscallBuilder::default()
+            .names(syscalls)
+            .action(LinuxSeccompAction::ScmpActAllow)
+            .build()?;
+
+        Ok(syscall)
     }
 }
 

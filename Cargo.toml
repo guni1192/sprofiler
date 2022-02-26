@@ -3,5 +3,4 @@ members = [
     "sprofiler",
     "sprofiler-test",
     "sprofiler-sys",
-    "oci-runtime-spec",
 ]

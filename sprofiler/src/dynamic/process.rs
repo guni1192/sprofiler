@@ -2,7 +2,7 @@ use std::fs::File;
 use std::io::prelude::*;
 use std::path::PathBuf;
 
-use oci_runtime_spec::State;
+use crate::oci::State;
 
 pub fn create_pid_file(path: PathBuf, pid: i32) -> anyhow::Result<()> {
     let mut file = File::create(path)?;
