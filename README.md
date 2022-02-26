@@ -4,12 +4,13 @@
 
 Sprofiler generate seccomp profiles for OCI Container
 
-## Environment
+## Requirement
 
 **sprofiler-bpf**
 - Ubuntu >= 20.10
 - Podman >= 3.0
 - Cgroup v2
+- `CONFIG_DEBUG_INFO_BTF=y`
 
 ## Getting Started
 
@@ -17,7 +18,7 @@ Sprofiler generate seccomp profiles for OCI Container
 
 ```
 sudo apt install libelf-dev libgcc-s1 libbpf-dev clang curl linux-tools-generic linux-tools-common make pkg-config podman
-bpftool btf dump file /sys/kernel/btf/vmlinux format c > ./sprofiler-bpf/src/bpf/vmlinux.h
+bpftool btf dump file /sys/kernel/btf/vmlinux format c > ./sprofiler/src/bpf/vmlinux.h
 cargo libbpf make
 ```
 
@@ -35,7 +36,7 @@ sudo podman run --security-opt=no-new-privileges \
     ghcr.io/sai-lab/hello-c:latest
 
 # check
-sudo podman run --rm --security-opt seccomp=$(pwd)/seccomp-profile.json guni1192/clang-app
+sudo podman run --rm --security-opt seccomp=$(pwd)/seccomp-profile.json ghcr.io/sai-lab/hello-c:latest
 ```
 
 ## Testing
