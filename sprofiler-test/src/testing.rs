@@ -109,7 +109,7 @@ pub fn assert_seccomp_profile(testname: &str, seccomp: LinuxSeccomp) {
 
             info!("[{}] OK !seccomp.syscalls[i].names.is_empty()", testname);
 
-            assert_eq!(syscall.action(), LinuxSeccompAction::ScmpActErrno);
+            assert_eq!(syscall.action(), LinuxSeccompAction::ScmpActAllow);
             info!(
                 "[{}] OK seccomp.syscalls[i].action == SCMP_ACT_ALLOW",
                 testname
