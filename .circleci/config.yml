@@ -12,6 +12,12 @@ jobs:
           name: Install build dependencies
           command: apt update && apt-get install -y libelf-dev libgcc-s1 libbpf-dev clang bpftool make pkg-config
       - run:
+          name: show kernel version
+          command: uname -a
+      - run:
+          name: show bpftool version
+          command: bpftool version
+      - run:
           name: Install rustfmt, clippy
           command: rustup component add rustfmt clippy
       - run:
@@ -45,6 +51,12 @@ jobs:
       - run:
           name: Install build dependencies
           command: apt update && apt-get install -y libelf-dev libgcc-s1 libbpf-dev clang bpftool make pkg-config
+      - run:
+          name: show kernel version
+          command: uname -a
+      - run:
+          name: show bpftool version
+          command: bpftool version
       - run:
           name: Install rustfmt for libbpf-cargo
           command: rustup component add rustfmt
